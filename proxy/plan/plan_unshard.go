@@ -68,15 +68,21 @@ func IsSelectLastInsertIDStmt(stmt ast.StmtNode) bool {
 }
 
 // CreateUnshardPlan constructor of UnshardPlan
-func CreateUnshardPlan(stmt ast.StmtNode, phyDBs map[string]string, db, sql string) (*UnshardPlan, error) {
+func CreateUnshardPlan(stmt ast.StmtNode, phyDBs map[string]string, db, sql string, tableNames []*ast.TableName) (*UnshardPlan, error) {
 	p := &UnshardPlan{
 		db:     db,
 		sql:    sql,
 		phyDBs: phyDBs,
 		stmt:   stmt,
 	}
-	v := NewUnshardTableRewriteVisitor(phyDBs)
-	stmt.Accept(v)
+
+	for _, tableName := range tableNames {
+		if phyDB, ok := phyDBs[tableName.Schema.O]; ok {
+			tableName.Schema.O = phyDB
+			tableName.Schema.L = strings.ToLower(phyDB)
+		}
+	}
+
 	rsql, err := generateUnshardingSQL(stmt)
 	if err != nil {
 		return nil, fmt.Errorf("generate unshardPlan SQL error: %v", err)

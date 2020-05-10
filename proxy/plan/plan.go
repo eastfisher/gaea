@@ -46,7 +46,6 @@ type Plan interface {
 
 // Executor TODO: move to package executor
 type Executor interface {
-
 	// 执行分片或非分片单条SQL
 	ExecuteSQL(ctx *util.RequestContext, slice, db, sql string) (*mysql.Result, error)
 
@@ -65,6 +64,7 @@ type Checker struct {
 	router        *router.Router
 	hasShardTable bool // 是否包含分片表
 	dbInvalid     bool // SQL是否No database selected
+	tableNames    []*ast.TableName
 }
 
 // NewChecker db为USE db中设置的DB名. 如果没有执行USE db, 则为空字符串
@@ -104,6 +104,8 @@ func (s *Checker) Enter(n ast.Node) (node ast.Node, skipChildren bool) {
 			s.hasShardTable = true
 			return n, true
 		}
+
+		s.tableNames = append(s.tableNames, nn)
 	}
 	return n, false
 }
@@ -182,7 +184,7 @@ func BuildPlan(stmt ast.StmtNode, phyDBs map[string]string, db, sql string, rout
 	if checker.IsShard() {
 		return buildShardPlan(stmt, db, sql, router, seq)
 	}
-	return CreateUnshardPlan(stmt, phyDBs, db, sql)
+	return CreateUnshardPlan(stmt, phyDBs, db, sql, checker.tableNames)
 }
 
 func buildShardPlan(stmt ast.StmtNode, db string, sql string, router *router.Router, seq *sequence.SequenceManager) (Plan, error) {
